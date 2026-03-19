@@ -7,7 +7,7 @@ import {
 import { createWorldMap } from './renderer/worldMap.js';
 import { createCarSprite, resizeCar } from './renderer/carSprite.js';
 import { spawnLocalFoods, animateFuelCans, checkFoodCollisions, createFuelCan } from './renderer/fuelCan.js';
-import { connectToServer, onMessage, sendJoin, setPlayerStateGetter } from './network.js';
+import { connectToServer, onMessage, sendJoin, setPlayerStateGetter, isConnected } from './network.js';
 import { showDeathScreen, hideDeathScreen } from './ui/screens.js';
 import { spawnParticles } from './renderer/particles.js';
 import { updateLeaderboard } from './ui/leaderboard.js';
@@ -274,11 +274,15 @@ function drawSpeedLines() {
 function connectNetwork() {
   const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:9001`;
 
-  connectToServer(wsUrl, {
-    onOpen() {
-      sendJoin(localPlayer.username, localPlayer.color);
-    },
-  });
+  // If already connected from main.js menu screen, just send join
+  // Otherwise connect fresh (local dev without menu pre-connect)
+  if (isConnected()) {
+    sendJoin(localPlayer.username, localPlayer.color);
+  } else {
+    connectToServer(wsUrl, {
+      onOpen() { sendJoin(localPlayer.username, localPlayer.color); },
+    });
+  }
 
   // Inject player state getter so network.js can send moves every 50ms
   setPlayerStateGetter(() => localPlayer);

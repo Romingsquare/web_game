@@ -5,7 +5,8 @@ import { updateOnlineCount } from './ui/screens.js';
 const SEND_INTERVAL = 1000 / TICK_RATE; // 50ms
 
 let socket   = null;
-let handlers = {};  // t → callback
+let handlers = {};
+let _pendingOnOpen = null;
 
 /**
  * Connect to the game server.
@@ -13,11 +14,19 @@ let handlers = {};  // t → callback
  * @param {object} callbacks - { onOpen, onClose, onMessage(msg) }
  */
 export function connectToServer(url, callbacks = {}) {
+  if (socket && socket.readyState !== WebSocket.CLOSED) {
+    // Already connected — just register the onOpen callback if socket is open
+    if (socket.readyState === WebSocket.OPEN) callbacks.onOpen?.();
+    else _pendingOnOpen = callbacks.onOpen;
+    return;
+  }
+  _pendingOnOpen = callbacks.onOpen;
   socket = new WebSocket(url);
 
   socket.addEventListener('open', () => {
     console.log('[net] connected to', url);
-    callbacks.onOpen?.();
+    _pendingOnOpen?.();
+    _pendingOnOpen = null;
     startSendLoop();
   });
 
@@ -40,7 +49,6 @@ export function connectToServer(url, callbacks = {}) {
 
   socket.addEventListener('close', () => {
     console.log('[net] disconnected');
-    callbacks.onClose?.();
     stopSendLoop();
   });
 
