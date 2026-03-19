@@ -5,6 +5,7 @@ let myId = null;
 
 export function setMyId(id) {
   myId = id;
+  console.log('[leaderboard] myId set to:', id);
 }
 
 /**
@@ -13,7 +14,16 @@ export function setMyId(id) {
  * @param {number} total - total players in room
  */
 export function updateLeaderboard(ranked, total) {
-  if (!list || !ranked || ranked.length === 0) return;
+  if (!list) {
+    console.warn('[leaderboard] list element not found');
+    return;
+  }
+  if (!ranked || ranked.length === 0) {
+    console.warn('[leaderboard] no ranked data');
+    return;
+  }
+
+  console.log('[leaderboard] updating with', ranked.length, 'players, myId:', myId);
 
   const topSlice = ranked.slice(0, 7);
   const myEntry  = ranked.find(p => p.id === myId);
@@ -32,7 +42,9 @@ export function updateLeaderboard(ranked, total) {
     rows.push(buildRow(myEntry, maxRadius, true));
   }
 
-  list.innerHTML = rows.join('');
+  const html = rows.join('');
+  console.log('[leaderboard] generated HTML length:', html.length);
+  list.innerHTML = html;
 }
 
 function buildRow(p, maxRadius, isSelf) {

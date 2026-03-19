@@ -165,7 +165,6 @@ function gameLoop() {
 function movePlayer() {
   const dx = mouse.x - localPlayer.x;
   const dy = mouse.y - localPlayer.y;
-  const dist = Math.hypot(dx, dy);
 
   // Always move toward mouse, no stopping
   localPlayer.angle = Math.atan2(dy, dx);
@@ -332,6 +331,7 @@ function connectNetwork() {
 
   // Live leaderboard — broadcast every 2s from server
   onMessage('board', (msg) => {
+    console.log('[game] received board message:', msg);
     updateLeaderboard(msg.ranked, msg.total);
   });
 }

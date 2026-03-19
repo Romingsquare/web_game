@@ -13,9 +13,12 @@ html {
 }
 #gameCanvas { 
   position: absolute; top: 0; left: 0; 
-  width: 100% !important; height: 100% !important;
+  width: 100vw !important; height: 100vh !important;
   display: block;
   touch-action: none;
+  image-rendering: auto;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 #hud {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -51,7 +54,7 @@ html {
 #screen-overlay.active { display: flex; }
 #welcome-screen {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
-  color: #fff; padding: 20px; max-width: 90vw;
+  color: #fff; padding: 20px; max-width: 400px; width: 90vw;
 }
 #welcome-screen h1 { font-size: 48px; font-weight: 700; letter-spacing: -1px; }
 #welcome-subtitle { font-size: 15px; color: rgba(255,255,255,0.5); margin-top: -8px; }
