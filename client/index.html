@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Car Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="hud">
+      <div id="leaderboard-panel">
+        <h3>Top Players</h3>
+        <ol id="leaderboard-list"></ol>
+      </div>
+      <div id="size-display">Size: 20</div>
+      <div id="nitro-display">
+        <span id="nitro-label">NITRO</span>
+        <div id="nitro-bar-bg"><div id="nitro-bar"></div></div>
+      </div>
+      <canvas id="mini-map" width="150" height="150"></canvas>
+      <canvas id="speed-lines" class="speed-line"></canvas>
+    </div>
+    <div id="screen-overlay" class="active">
+      <div id="welcome-screen">
+        <h1>Car Arena</h1>
+        <p id="welcome-subtitle">Eat fuel. Grow big. Destroy everyone.</p>
+        <input type="text" id="username-input" placeholder="Enter your name" maxlength="16">
+        <div id="color-picker-row">
+          <span class="color-label">Car color</span>
+          <div id="color-swatches">
+            <button class="swatch active" data-color="#5865f2" style="background:#5865f2"></button>
+            <button class="swatch" data-color="#e74c3c" style="background:#e74c3c"></button>
+            <button class="swatch" data-color="#2ecc71" style="background:#2ecc71"></button>
+            <button class="swatch" data-color="#f39c12" style="background:#f39c12"></button>
+            <button class="swatch" data-color="#e91e8c" style="background:#e91e8c"></button>
+            <button class="swatch" data-color="#00bcd4" style="background:#00bcd4"></button>
+          </div>
+        </div>
+        <button id="play-btn">Play</button>
+      </div>
+      <div id="death-screen" style="display:none;">
+        <h2 id="death-title">You were destroyed!</h2>
+        <p id="death-killer"></p>
+        <p id="death-hint">Press <kbd>Space</kbd> or click to respawn</p>
+        <button id="respawn-btn">Respawn</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
