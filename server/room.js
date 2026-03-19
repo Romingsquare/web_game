@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import {
   MAP_SIZE, BASE_RADIUS, FOOD_COUNT, FOOD_RADIUS, FOOD_VALUE,
-  EAT_RATIO, TICK_RATE, MAX_PLAYERS_PER_ROOM, ROOM_ID_LENGTH,
+  EAT_RATIO, TICK_RATE, MAX_PLAYERS_PER_ROOM, ROOM_ID_LENGTH, MAX_RADIUS,
 } from '../shared/constants.js';
 import { saveHighScore } from './supabase.js';
 import { removeRoom } from './roomManager.js';
@@ -89,7 +89,7 @@ export class Room {
         const dx = player.x - f.x;
         const dy = player.y - f.y;
         if (dx * dx + dy * dy < eatDistSq) {
-          player.radius += FOOD_VALUE;
+          player.radius = Math.min(player.radius + FOOD_VALUE, MAX_RADIUS);
           this.foods.splice(i, 1);
         }
       }

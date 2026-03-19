@@ -2,7 +2,7 @@ import { Application, Container } from 'pixi.js';
 import {
   MAP_SIZE, BASE_RADIUS, BASE_SPEED,
   MIN_ZOOM, MAX_ZOOM, FOOD_COUNT,
-  NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN
+  NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN, MAX_RADIUS
 } from '../../shared/constants.js';
 import { createWorldMap } from './renderer/worldMap.js';
 import { createCarSprite, resizeCar } from './renderer/carSprite.js';
@@ -157,8 +157,8 @@ function movePlayer() {
   const dx = mouse.x - localPlayer.x;
   const dy = mouse.y - localPlayer.y;
   const dist = Math.hypot(dx, dy);
-  if (dist < 2) return;
 
+  // Always move toward mouse, no stopping
   localPlayer.angle = Math.atan2(dy, dx);
 
   // Speed scales down as car grows; nitro multiplies it
@@ -171,6 +171,9 @@ function movePlayer() {
   localPlayer.y += Math.sin(localPlayer.angle) * speed;
   localPlayer.x = Math.max(localPlayer.radius, Math.min(MAP_SIZE - localPlayer.radius, localPlayer.x));
   localPlayer.y = Math.max(localPlayer.radius, Math.min(MAP_SIZE - localPlayer.radius, localPlayer.y));
+
+  // Cap radius at MAX_RADIUS
+  if (localPlayer.radius > MAX_RADIUS) localPlayer.radius = MAX_RADIUS;
 }
 
 function updateCamera() {

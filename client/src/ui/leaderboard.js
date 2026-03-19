@@ -13,7 +13,12 @@ export function setMyId(id) {
  * @param {number} total - total players in room
  */
 export function updateLeaderboard(ranked, total) {
-  if (!list || !ranked) return;
+  if (!list || !ranked) {
+    console.warn('[leaderboard] missing list or ranked', { list, ranked });
+    return;
+  }
+
+  console.log('[leaderboard] update', { ranked, total });
 
   const topSlice = ranked.slice(0, 7);
   const myEntry  = ranked.find(p => p.id === myId);
@@ -35,6 +40,7 @@ export function updateLeaderboard(ranked, total) {
   }
 
   list.innerHTML = rows.join('');
+  console.log('[leaderboard] rendered', rows.length, 'rows');
 }
 
 function buildRow(p, maxRadius, isSelf) {

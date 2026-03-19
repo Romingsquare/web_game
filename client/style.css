@@ -1,7 +1,20 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0d0d1a; overflow: hidden; font-family: 'Inter', sans-serif; }
-#game-container { position: relative; width: 100vw; height: 100vh; }
-#gameCanvas { position: absolute; top: 0; left: 0; display: block; }
+body { 
+  background: #0d0d1a; overflow: hidden; font-family: 'Inter', sans-serif;
+  touch-action: none; /* prevent mobile zoom */
+  user-select: none;
+}
+html { 
+  touch-action: manipulation; /* prevent double-tap zoom */
+}
+#game-container { 
+  position: relative; width: 100vw; height: 100vh;
+  touch-action: none;
+}
+#gameCanvas { 
+  position: absolute; top: 0; left: 0; display: block;
+  touch-action: none;
+}
 #hud {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   pointer-events: none; z-index: 10;
@@ -31,11 +44,12 @@ body { background: #0d0d1a; overflow: hidden; font-family: 'Inter', sans-serif; 
   display: none; position: fixed; inset: 0; z-index: 100;
   background: rgba(10,10,26,0.92); backdrop-filter: blur(10px);
   align-items: center; justify-content: center;
+  overflow-y: auto; /* allow scroll if content too tall */
 }
 #screen-overlay.active { display: flex; }
 #welcome-screen {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
-  color: #fff;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  color: #fff; padding: 20px; max-width: 90vw;
 }
 #welcome-screen h1 { font-size: 48px; font-weight: 700; letter-spacing: -1px; }
 #welcome-subtitle { font-size: 15px; color: rgba(255,255,255,0.5); margin-top: -8px; }

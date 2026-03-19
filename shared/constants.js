@@ -7,8 +7,9 @@ export const FOOD_RADIUS     = 8;
 export const FOOD_VALUE      = 2;
 export const EAT_RATIO       = 1.10;
 export const RESPAWN_SIZE    = BASE_RADIUS;
-export const MIN_ZOOM        = 0.3;
+export const MIN_ZOOM        = 0.6;  // was 0.3 — less zoom out
 export const MAX_ZOOM        = 1.2;
+export const MAX_RADIUS      = 120; // cap car size
 
 // Nitro boost
 export const NITRO_MULTIPLIER = 2.2;
