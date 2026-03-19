@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: 'client',
-    base: mode === 'production' ? '/car-arena/' : '/',
+    base: mode === 'production' ? '/web_game/' : '/',
     build: {
       outDir: '../dist',
       emptyOutDir: true,
