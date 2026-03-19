@@ -68,8 +68,8 @@ export async function initGame(username = 'Player', color = '#5865f2') {
     resizeTo: window,
     background: '#0d0d1a',
     antialias: true,
-    resolution: window.devicePixelRatio || 1,
-    autoDensity: true,
+    resolution: 1, // force 1:1 pixel ratio
+    autoDensity: false, // disable auto DPI scaling
   });
 
   // Scene graph
@@ -118,13 +118,22 @@ export async function initGame(username = 'Player', color = '#5865f2') {
 
   // Size speed-lines canvas to window
   if (speedLinesCanvas) {
-    speedLinesCanvas.width  = window.innerWidth;
-    speedLinesCanvas.height = window.innerHeight;
-    window.addEventListener('resize', () => {
+    const resizeCanvas = () => {
       speedLinesCanvas.width  = window.innerWidth;
       speedLinesCanvas.height = window.innerHeight;
-    });
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
   }
+
+  // Force canvas size sync
+  const syncCanvasSize = () => {
+    const canvas = document.getElementById('gameCanvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  };
+  syncCanvasSize();
+  window.addEventListener('resize', syncCanvasSize);
 
   // Main ticker
   app.ticker.add(gameLoop);

@@ -13,12 +13,7 @@ export function setMyId(id) {
  * @param {number} total - total players in room
  */
 export function updateLeaderboard(ranked, total) {
-  if (!list || !ranked) {
-    console.warn('[leaderboard] missing list or ranked', { list, ranked });
-    return;
-  }
-
-  console.log('[leaderboard] update', { ranked, total });
+  if (!list || !ranked || ranked.length === 0) return;
 
   const topSlice = ranked.slice(0, 7);
   const myEntry  = ranked.find(p => p.id === myId);
@@ -32,15 +27,12 @@ export function updateLeaderboard(ranked, total) {
     rows.push(buildRow(p, maxRadius, p.id === myId));
   }
 
-  if (!inTop7) {
+  if (!inTop7 && myEntry) {
     rows.push(`<li class="lb-sep">···</li>`);
-    if (myEntry) {
-      rows.push(buildRow(myEntry, maxRadius, true));
-    }
+    rows.push(buildRow(myEntry, maxRadius, true));
   }
 
   list.innerHTML = rows.join('');
-  console.log('[leaderboard] rendered', rows.length, 'rows');
 }
 
 function buildRow(p, maxRadius, isSelf) {
