@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle, filters } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, BlurFilter } from 'pixi.js';
 import { BASE_RADIUS } from '../../../shared/constants.js';
 
 const WHEEL_COLOR      = 0x222222;
@@ -18,7 +18,7 @@ export function createCarSprite(color, username) {
   const glow = new Graphics();
   drawBody(glow, hexColor, BASE_RADIUS);
   glow.alpha = 0.45;
-  const blurFilter = new filters.BlurFilter();
+  const blurFilter = new BlurFilter();
   blurFilter.blur = 12;
   glow.filters = [blurFilter];
   container.addChild(glow);
