@@ -11,6 +11,10 @@ export const MIN_ZOOM        = 0.3;
 export const MAX_ZOOM        = 1.2;
 
 // Nitro boost
-export const NITRO_MULTIPLIER = 2.2;   // speed multiplier during boost
-export const NITRO_DURATION   = 2000;  // ms boost lasts
-export const NITRO_COOLDOWN   = 5000;  // ms before boost can be used again
+export const NITRO_MULTIPLIER = 2.2;
+export const NITRO_DURATION   = 2000;
+export const NITRO_COOLDOWN   = 5000;
+
+// Room system
+export const MAX_PLAYERS_PER_ROOM = 50;
+export const ROOM_ID_LENGTH       = 6;

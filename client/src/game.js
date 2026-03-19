@@ -316,7 +316,7 @@ function connectNetwork() {
 
   // Live leaderboard — broadcast every 2s from server
   onMessage('board', (msg) => {
-    updateLeaderboard(msg.top, localPlayer.id);
+    updateLeaderboard(msg.ranked, msg.total);
   });
 }
 

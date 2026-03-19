@@ -20,6 +20,15 @@ export function getSelectedColor() {
   return selectedColor;
 }
 
+// ── Online count (shown on welcome screen) ────────────────────────────────────
+const onlineCountEl = document.getElementById('online-count');
+
+export function updateOnlineCount(totalPlayers, roomCount) {
+  if (!onlineCountEl) return;
+  const arenaWord = roomCount !== 1 ? 'arenas' : 'arena';
+  onlineCountEl.textContent = `Players online: ${totalPlayers} across ${roomCount} ${arenaWord}`;
+}
+
 // ── Welcome screen ────────────────────────────────────────────────────────────
 export function hideOverlay() {
   overlay.classList.remove('active');

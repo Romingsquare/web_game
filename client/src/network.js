@@ -1,4 +1,6 @@
 import { TICK_RATE } from '../../shared/constants.js';
+import { setMyId } from './ui/leaderboard.js';
+import { updateOnlineCount } from './ui/screens.js';
 
 const SEND_INTERVAL = 1000 / TICK_RATE; // 50ms
 
@@ -27,6 +29,10 @@ export function connectToServer(url, callbacks = {}) {
     // Route to registered handler
     const handler = handlers[msg.t];
     if (handler) handler(msg);
+
+    // Built-in handlers
+    if (msg.t === 'welcome') setMyId(msg.id);
+    if (msg.t === 'online')  updateOnlineCount(msg.totalPlayers, msg.roomCount);
 
     // Also call generic onMessage if provided
     callbacks.onMessage?.(msg);

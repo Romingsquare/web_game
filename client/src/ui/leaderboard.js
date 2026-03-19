@@ -1,25 +1,62 @@
 const list = document.getElementById('leaderboard-list');
 
-/**
- * Update the leaderboard DOM panel.
- * @param {Array<{username: string, radius: number}>} top - sorted top-10 from server
- * @param {string} localId - local player's id to highlight their row
- */
-export function updateLeaderboard(top, localId) {
-  if (!list) return;
+// Set by network.js when welcome message arrives
+let myId = null;
 
-  list.innerHTML = top.map((entry, i) => {
-    const isMe = entry.id && entry.id === localId;
-    return `<li style="${isMe ? 'color:#5865f2;font-weight:600;' : ''}">
-      <span>${i + 1}. ${escapeHtml(entry.username)}</span>
-      <span>${entry.radius}</span>
-    </li>`;
-  }).join('');
+export function setMyId(id) {
+  myId = id;
+}
+
+/**
+ * Render the smart leaderboard.
+ * @param {Array<{id,username,color,radius,rank}>} ranked - full sorted list from server
+ * @param {number} total - total players in room
+ */
+export function updateLeaderboard(ranked, total) {
+  if (!list || !ranked) return;
+
+  const topSlice = ranked.slice(0, 7);
+  const myEntry  = ranked.find(p => p.id === myId);
+  const myRank   = myEntry ? myEntry.rank : total;
+  const inTop7   = myRank <= 7;
+  const maxRadius = topSlice[0]?.radius || 1;
+
+  const rows = [];
+
+  for (const p of topSlice) {
+    rows.push(buildRow(p, maxRadius, p.id === myId));
+  }
+
+  if (!inTop7) {
+    rows.push(`<li class="lb-sep">···</li>`);
+    if (myEntry) {
+      rows.push(buildRow(myEntry, maxRadius, true));
+    }
+  }
+
+  list.innerHTML = rows.join('');
+}
+
+function buildRow(p, maxRadius, isSelf) {
+  const barWidth = Math.round((p.radius / maxRadius) * 60);
+  const name     = escapeHtml(p.username.length > 12
+    ? p.username.slice(0, 12) + '…'
+    : p.username);
+
+  return `<li class="lb-row${isSelf ? ' lb-self' : ''}">
+    <span class="lb-rank">#${p.rank}</span>
+    <span class="lb-name">${name}</span>
+    <span class="lb-bar-wrap">
+      <span class="lb-bar" style="width:${barWidth}px;background:${escapeHtml(p.color)};"></span>
+    </span>
+    <span class="lb-score">${p.radius}</span>
+  </li>`;
 }
 
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
