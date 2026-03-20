@@ -11,6 +11,7 @@ onMessage('online', (msg) => updateOnlineCount(msg.totalPlayers, msg.roomCount))
 // ── Play button ───────────────────────────────────────────────────────────────
 const overlay       = document.getElementById('screen-overlay');
 const usernameInput = document.getElementById('username-input');
+const roomCodeInput = document.getElementById('room-code-input');
 const playBtn       = document.getElementById('play-btn');
 
 let gameStarted = false;
@@ -19,12 +20,16 @@ function startGame() {
   if (gameStarted) return;
   const username = usernameInput.value.trim() || 'Anonymous';
   const color    = getSelectedColor();
+  const roomCode = roomCodeInput.value.trim().toUpperCase() || null;
   gameStarted = true;
   overlay.classList.remove('active');
-  initGame(username, color).catch(console.error);
+  initGame(username, color, roomCode).catch(console.error);
 }
 
 playBtn.addEventListener('click', startGame);
 usernameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startGame();
+});
+roomCodeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') startGame();
 });

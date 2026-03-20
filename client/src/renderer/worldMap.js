@@ -2,18 +2,18 @@ import { Graphics, Container } from 'pixi.js';
 import { MAP_SIZE } from '../../../shared/constants.js';
 
 const GRID_SIZE   = 200; // px between grid lines
-const ROAD_EVERY  = 5;   // every 5th line is a "road" (brighter)
+const ROAD_EVERY  = 5;   // every 5th line is a "road" (darker)
 
 /**
- * Draws the static world background: dark asphalt fill + grid lines.
+ * Draws the static world background: white fill + grid lines.
  * Returns a Container ready to be added to mapLayer.
  */
 export function createWorldMap() {
   const container = new Container();
 
-  // --- Asphalt base ---
+  // --- White base ---
   const base = new Graphics();
-  base.rect(0, 0, MAP_SIZE, MAP_SIZE).fill({ color: 0x111118 });
+  base.rect(0, 0, MAP_SIZE, MAP_SIZE).fill({ color: 0xf5f5f5 });
   container.addChild(base);
 
   // --- Grid lines ---
@@ -23,8 +23,8 @@ export function createWorldMap() {
   for (let i = 0; i <= lineCount; i++) {
     const pos    = i * GRID_SIZE;
     const isRoad = i % ROAD_EVERY === 0;
-    const color  = isRoad ? 0x2a2a3a : 0x1a1a28;
-    const alpha  = isRoad ? 0.9 : 0.5;
+    const color  = isRoad ? 0xcccccc : 0xe0e0e0;
+    const alpha  = isRoad ? 0.8 : 0.4;
     const width  = isRoad ? 2 : 1;
 
     // vertical

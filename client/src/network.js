@@ -69,8 +69,10 @@ export function onMessage(type, fn) {
 /**
  * Send the join message once after connecting.
  */
-export function sendJoin(username, color) {
-  send({ t: 'join', username, color });
+export function sendJoin(username, color, roomId = null) {
+  const msg = { t: 'join', username, color };
+  if (roomId) msg.roomId = roomId;
+  send(msg);
 }
 
 // ── Move send loop ────────────────────────────────────────────────────────────

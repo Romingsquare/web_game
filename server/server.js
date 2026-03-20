@@ -30,6 +30,7 @@ app.ws('/*', {
       const id = randomUUID();
       const username = String(msg.username || 'Anonymous').slice(0, 16);
       const color    = /^#[0-9a-fA-F]{6}$/.test(msg.color) ? msg.color : '#5865f2';
+      const requestedRoomId = msg.roomId ? String(msg.roomId).toUpperCase().slice(0, 6) : null;
 
       const playerData = {
         id, ws, username, color,
@@ -37,10 +38,11 @@ app.ws('/*', {
         y:        Math.random() * (MAP_SIZE - 200) + 100,
         angle:    0,
         radius:   BASE_RADIUS,
+        score:    0,
         lastMove: Date.now(),
       };
 
-      const room = getOrCreateRoom();
+      const room = getOrCreateRoom(requestedRoomId);
       room.addPlayer(ws, playerData);
       ws.playerData = playerData;
       pendingConnections.delete(ws);
@@ -51,6 +53,7 @@ app.ws('/*', {
         x:       playerData.x,
         y:       playerData.y,
         radius:  playerData.radius,
+        score:   playerData.score,
         mapSize: MAP_SIZE,
         roomId:  room.id,
       }));

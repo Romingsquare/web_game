@@ -2,7 +2,7 @@ import { Application, Container } from 'pixi.js';
 import {
   MAP_SIZE, BASE_RADIUS, BASE_SPEED,
   MIN_ZOOM, MAX_ZOOM, FOOD_COUNT,
-  NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN, MAX_RADIUS
+  NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN, MAX_RADIUS, GROWTH_FACTOR
 } from '../../shared/constants.js';
 import { createWorldMap } from './renderer/worldMap.js';
 import { createCarSprite, resizeCar } from './renderer/carSprite.js';
@@ -28,6 +28,7 @@ export const localPlayer = {
   y:        MAP_SIZE / 2,
   angle:    0,
   radius:   BASE_RADIUS,
+  score:    0, // track score separately
   color:    '#5865f2',
   username: 'Player',
   id:       null,
@@ -58,7 +59,7 @@ const serverFoods   = new Map();
 let   useServerFood = false; // flips true once first 'state' arrives
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-export async function initGame(username = 'Player', color = '#5865f2') {
+export async function initGame(username = 'Player', color = '#5865f2', roomCode = null) {
   localPlayer.username = username;
   localPlayer.color    = color;
   app = new Application();
@@ -66,10 +67,8 @@ export async function initGame(username = 'Player', color = '#5865f2') {
   await app.init({
     canvas: document.getElementById('gameCanvas'),
     resizeTo: window,
-    background: '#0d0d1a',
+    background: '#ffffff',
     antialias: true,
-    resolution: 1, // force 1:1 pixel ratio
-    autoDensity: false, // disable auto DPI scaling
   });
 
   // Scene graph
@@ -129,8 +128,8 @@ export async function initGame(username = 'Player', color = '#5865f2') {
   // Force canvas size sync
   const syncCanvasSize = () => {
     const canvas = document.getElementById('gameCanvas');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
   };
   syncCanvasSize();
   window.addEventListener('resize', syncCanvasSize);
@@ -142,7 +141,7 @@ export async function initGame(username = 'Player', color = '#5865f2') {
   document.getElementById('hud').classList.add('visible');
 
   // Network — connect to server
-  connectNetwork();
+  connectNetwork(roomCode);
 
   console.log(`[game] ready — ${app.screen.width}×${app.screen.height}`);
 }
@@ -150,14 +149,15 @@ export async function initGame(username = 'Player', color = '#5865f2') {
 // ── Game loop (runs every frame) ──────────────────────────────────────────────
 function gameLoop() {
   movePlayer();
-  if (!useServerFood) {
-    checkFoodCollisions(foodLayer, localPlayer, MAP_SIZE);
-  }
+  // Don't check food collisions locally - server handles it
+  // if (!useServerFood) {
+  //   checkFoodCollisions(foodLayer, localPlayer, MAP_SIZE);
+  // }
   animateFuelCans(foodLayer);
   interpolateRemotePlayers();
   updateCamera();
   updateCarSprite();
-  updateSizeDisplay(localPlayer.radius);
+  updateSizeDisplay(localPlayer.score);
   updateMiniMap(localPlayer, remotePlayers, serverFoods);
   drawSpeedLines();
 }
@@ -166,7 +166,7 @@ function movePlayer() {
   const dx = mouse.x - localPlayer.x;
   const dy = mouse.y - localPlayer.y;
 
-  // Always move toward mouse, no stopping
+  // Always update angle and move toward mouse
   localPlayer.angle = Math.atan2(dy, dx);
 
   // Speed scales down as car grows; nitro multiplies it
@@ -175,13 +175,13 @@ function movePlayer() {
   const boost = nitro.active ? NITRO_MULTIPLIER : 1;
   const speed = (BASE_SPEED / Math.sqrt(localPlayer.radius / BASE_RADIUS)) * boost;
 
+  // Always move, no distance check
   localPlayer.x += Math.cos(localPlayer.angle) * speed;
   localPlayer.y += Math.sin(localPlayer.angle) * speed;
+  
+  // Clamp to map bounds
   localPlayer.x = Math.max(localPlayer.radius, Math.min(MAP_SIZE - localPlayer.radius, localPlayer.x));
   localPlayer.y = Math.max(localPlayer.radius, Math.min(MAP_SIZE - localPlayer.radius, localPlayer.y));
-
-  // Cap radius at MAX_RADIUS
-  if (localPlayer.radius > MAX_RADIUS) localPlayer.radius = MAX_RADIUS;
 }
 
 function updateCamera() {
@@ -215,10 +215,11 @@ function updateCarSprite() {
   // Rotate car: angle 0 = right, but car faces up by default, so offset by -π/2
   carSprite.rotation = localPlayer.angle + Math.PI / 2;
 
-  // Redraw if radius changed
-  if (localPlayer.radius !== lastRadius) {
+  // Redraw if radius changed (check with tolerance to avoid constant redraws)
+  if (Math.abs(localPlayer.radius - lastRadius) > 0.5) {
     resizeCar(carSprite, localPlayer.radius);
     lastRadius = localPlayer.radius;
+    console.log('[game] car resized to radius:', localPlayer.radius, 'score:', localPlayer.score);
   }
 }
 
@@ -282,16 +283,16 @@ function drawSpeedLines() {
 
 // ── Network ───────────────────────────────────────────────────────────────────
 
-function connectNetwork() {
+function connectNetwork(roomCode = null) {
   const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:9001`;
 
   // If already connected from main.js menu screen, just send join
   // Otherwise connect fresh (local dev without menu pre-connect)
   if (isConnected()) {
-    sendJoin(localPlayer.username, localPlayer.color);
+    sendJoin(localPlayer.username, localPlayer.color, roomCode);
   } else {
     connectToServer(wsUrl, {
-      onOpen() { sendJoin(localPlayer.username, localPlayer.color); },
+      onOpen() { sendJoin(localPlayer.username, localPlayer.color, roomCode); },
     });
   }
 
@@ -303,7 +304,14 @@ function connectNetwork() {
     localPlayer.x      = msg.x;
     localPlayer.y      = msg.y;
     localPlayer.radius = msg.radius;
+    localPlayer.score  = msg.score || 0;
     localPlayer.id     = msg.id;
+    
+    // Display room code
+    const roomCodeEl = document.getElementById('room-code');
+    if (roomCodeEl && msg.roomId) {
+      roomCodeEl.textContent = msg.roomId;
+    }
   });
 
   // Full world state tick
@@ -326,6 +334,7 @@ function connectNetwork() {
     localPlayer.x      = msg.x;
     localPlayer.y      = msg.y;
     localPlayer.radius = msg.radius;
+    localPlayer.score  = msg.score || 0;
     hideDeathScreen();
   });
 
@@ -342,7 +351,16 @@ function reconcileRemotePlayers(serverList) {
   const seen = new Set();
 
   for (const p of serverList) {
-    if (p.id === localPlayer.id) continue; // skip self
+    if (p.id === localPlayer.id) {
+      // Update our own score from server
+      if (p.score !== undefined) {
+        localPlayer.score = p.score;
+        // Calculate radius from score
+        localPlayer.radius = BASE_RADIUS + Math.sqrt(localPlayer.score * GROWTH_FACTOR);
+        console.log('[game] synced from server - score:', localPlayer.score, 'radius:', localPlayer.radius);
+      }
+      continue;
+    }
     seen.add(p.id);
 
     if (!remotePlayers.has(p.id)) {

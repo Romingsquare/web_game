@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import {
   MAP_SIZE, BASE_RADIUS, FOOD_COUNT, FOOD_RADIUS, FOOD_VALUE,
-  EAT_RATIO, TICK_RATE, MAX_PLAYERS_PER_ROOM, ROOM_ID_LENGTH, MAX_RADIUS,
+  EAT_RATIO, TICK_RATE, MAX_PLAYERS_PER_ROOM, ROOM_ID_LENGTH, MAX_RADIUS, GROWTH_FACTOR,
 } from '../shared/constants.js';
 import { saveHighScore } from './supabase.js';
 import { removeRoom } from './roomManager.js';
@@ -45,8 +45,9 @@ export class Room {
     const p = this.players.get(id);
     if (!p) return;
 
-    // Save high score (fire and forget)
-    saveHighScore(p.username, p.radius).catch(() => {});
+    // Save high score using score, not radius
+    const playerScore = p.score || 0;
+    saveHighScore(p.username, playerScore).catch(() => {});
 
     this.players.delete(id);
     this.sockets.delete(p.ws);
@@ -89,7 +90,10 @@ export class Room {
         const dx = player.x - f.x;
         const dy = player.y - f.y;
         if (dx * dx + dy * dy < eatDistSq) {
-          player.radius = Math.min(player.radius + FOOD_VALUE, MAX_RADIUS);
+          // Increase score
+          player.score = (player.score || 0) + FOOD_VALUE;
+          // Calculate radius from score (exponential slowdown)
+          player.radius = Math.min(MAX_RADIUS, BASE_RADIUS + Math.sqrt(player.score * GROWTH_FACTOR));
           this.foods.splice(i, 1);
         }
       }
@@ -114,15 +118,18 @@ export class Room {
           t: 'killed', killerId: killer.id, killerName: killer.username,
         }));
 
-        saveHighScore(victim.username, victim.radius).catch(() => {});
+        // Save high score using score, not radius
+        const victimScore = victim.score || 0;
+        saveHighScore(victim.username, victimScore).catch(() => {});
 
         // Respawn victim in place
         victim.x      = randomPos();
         victim.y      = randomPos();
         victim.radius = BASE_RADIUS;
+        victim.score  = 0;
 
         safeSend(victim.ws, JSON.stringify({
-          t: 'respawn', x: victim.x, y: victim.y, radius: victim.radius,
+          t: 'respawn', x: victim.x, y: victim.y, radius: victim.radius, score: victim.score,
         }));
       }
     }
@@ -148,8 +155,16 @@ export class Room {
     const visPlayers = [];
     for (const p of this.players.values()) {
       if (Math.abs(p.x - viewer.x) < halfW && Math.abs(p.y - viewer.y) < halfH) {
-        visPlayers.push({ id: p.id, x: p.x, y: p.y, angle: p.angle,
-          radius: p.radius, username: p.username, color: p.color });
+        visPlayers.push({ 
+          id: p.id, 
+          x: p.x, 
+          y: p.y, 
+          angle: p.angle,
+          radius: p.radius, 
+          score: p.score || 0,
+          username: p.username, 
+          color: p.color 
+        });
       }
     }
     const visFoods = this.foods.filter(f =>
@@ -162,12 +177,12 @@ export class Room {
 
   broadcastLeaderboard() {
     const ranked = Array.from(this.players.values())
-      .sort((a, b) => b.radius - a.radius)
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
       .map((p, i) => ({
         id:       p.id,
         username: p.username,
         color:    p.color,
-        radius:   Math.floor(p.radius),
+        radius:   Math.floor(p.score || 0), // show score in leaderboard
         rank:     i + 1,
       }));
 

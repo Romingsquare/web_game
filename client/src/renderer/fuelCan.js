@@ -1,8 +1,17 @@
 import { Container, Graphics } from 'pixi.js';
-import { FOOD_RADIUS, FOOD_VALUE, BASE_RADIUS } from '../../../shared/constants.js';
+import { FOOD_RADIUS, FOOD_VALUE, BASE_RADIUS, GROWTH_FACTOR } from '../../../shared/constants.js';
 
-const CAN_COLOR    = 0x2ecc71;
-const CAN_GLOW     = 0x27ae60;
+const FOOD_COLORS = [
+  0xff6b6b, // red
+  0x4ecdc4, // cyan
+  0xffe66d, // yellow
+  0x95e1d3, // mint
+  0xf38181, // pink
+  0xaa96da, // purple
+  0xfcbad3, // light pink
+  0xa8e6cf, // light green
+];
+
 const PULSE_SPEED  = 0.003; // radians per ms
 
 /**
@@ -18,16 +27,20 @@ export function createFuelCan(x, y, id) {
   container.y = y;
   container._id = id;
   container._born = Date.now();
+  
+  // Random color for this food
+  const color = FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)];
+  container._color = color;
 
   // Outer glow ring
   const glow = new Graphics();
   glow.circle(0, 0, FOOD_RADIUS * 1.8)
-      .fill({ color: CAN_GLOW, alpha: 0.25 });
+      .fill({ color, alpha: 0.2 });
   container.addChild(glow);
 
   // Main can body
   const body = new Graphics();
-  drawCan(body);
+  drawCan(body, color);
   container.addChild(body);
 
   container._glow = glow;
@@ -36,16 +49,32 @@ export function createFuelCan(x, y, id) {
   return container;
 }
 
-function drawCan(g) {
+function drawCan(g, color) {
   // Fuel can: small rounded rect with a nozzle on top
   g.roundRect(-FOOD_RADIUS * 0.7, -FOOD_RADIUS, FOOD_RADIUS * 1.4, FOOD_RADIUS * 1.8, 3)
-   .fill({ color: CAN_COLOR });
-  // Nozzle
+   .fill({ color });
+  // Nozzle (darker shade)
+  const darkerColor = darkenColor(color, 0.8);
   g.roundRect(-FOOD_RADIUS * 0.2, -FOOD_RADIUS * 1.35, FOOD_RADIUS * 0.55, FOOD_RADIUS * 0.5, 2)
-   .fill({ color: 0x27ae60 });
-  // Highlight stripe
+   .fill({ color: darkerColor });
+  // Highlight stripe (lighter shade)
+  const lighterColor = lightenColor(color, 1.2);
   g.roundRect(-FOOD_RADIUS * 0.45, -FOOD_RADIUS * 0.7, FOOD_RADIUS * 0.25, FOOD_RADIUS * 1.1, 2)
-   .fill({ color: 0x58d68d, alpha: 0.6 });
+   .fill({ color: lighterColor, alpha: 0.6 });
+}
+
+function darkenColor(color, factor) {
+  const r = ((color >> 16) & 0xff) * factor;
+  const g = ((color >> 8) & 0xff) * factor;
+  const b = (color & 0xff) * factor;
+  return (Math.floor(r) << 16) | (Math.floor(g) << 8) | Math.floor(b);
+}
+
+function lightenColor(color, factor) {
+  const r = Math.min(255, ((color >> 16) & 0xff) * factor);
+  const g = Math.min(255, ((color >> 8) & 0xff) * factor);
+  const b = Math.min(255, (color & 0xff) * factor);
+  return (Math.floor(r) << 16) | (Math.floor(g) << 8) | Math.floor(b);
 }
 
 /**
@@ -61,7 +90,7 @@ export function animateFuelCans(foodLayer) {
     const s = 1 + pulse * 0.08;
     can._body.scale.set(s);
     // Alpha ±20% on glow
-    can._glow.alpha = 0.25 + pulse * 0.2;
+    can._glow.alpha = 0.2 + pulse * 0.15;
   }
 }
 
@@ -87,9 +116,9 @@ export function spawnLocalFoods(foodLayer, count, mapSize) {
 
 /**
  * Checks if the local player overlaps any fuel can.
- * Removes eaten cans, grows player, respawns them at new random positions.
+ * Removes eaten cans, grows player score, respawns them at new random positions.
  * @param {Container} foodLayer
- * @param {object} player  - localPlayer ref {x, y, radius}
+ * @param {object} player  - localPlayer ref {x, y, radius, score}
  * @param {number} mapSize
  */
 export function checkFoodCollisions(foodLayer, player, mapSize) {
@@ -100,13 +129,24 @@ export function checkFoodCollisions(foodLayer, player, mapSize) {
     const dx  = player.x - can.x;
     const dy  = player.y - can.y;
     if (dx * dx + dy * dy < eatDistSq) {
-      // Grow player
-      player.radius += FOOD_VALUE;
+      // Increase score
+      player.score += FOOD_VALUE;
+      
+      // Calculate radius from score (exponential slowdown)
+      player.radius = BASE_RADIUS + Math.sqrt(player.score * GROWTH_FACTOR);
 
-      // Respawn can at new random position
+      // Respawn can at new random position with new color
       can.x = Math.random() * (mapSize - 100) + 50;
       can.y = Math.random() * (mapSize - 100) + 50;
       can._born = Date.now(); // reset pulse phase
+      
+      // Change color
+      const newColor = FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)];
+      can._color = newColor;
+      can._body.clear();
+      drawCan(can._body, newColor);
+      can._glow.clear();
+      can._glow.circle(0, 0, FOOD_RADIUS * 1.8).fill({ color: newColor, alpha: 0.2 });
     }
   }
 }

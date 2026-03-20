@@ -12,9 +12,9 @@ let _lastMmUpdate = 0;
 
 // ── Size display ──────────────────────────────────────────────────────────────
 
-/** Call every frame with the local player's current radius */
-export function updateSizeDisplay(radius) {
-  sizeDisplay.textContent = `Size: ${Math.round(radius)}`;
+/** Call every frame with the local player's current score */
+export function updateSizeDisplay(score) {
+  sizeDisplay.textContent = `Score: ${Math.round(score)}`;
 }
 
 // ── Mini-map ──────────────────────────────────────────────────────────────────
