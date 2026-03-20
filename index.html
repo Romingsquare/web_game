@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/web_game/assets/index-BzKAhO-J.js"></script>
-  <link rel="stylesheet" crossorigin href="/web_game/assets/index-DyRIwrSM.css">
+  <script type="module" crossorigin src="/web_game/assets/index-Bc-J7wim.js"></script>
+  <link rel="stylesheet" crossorigin href="/web_game/assets/index-DfvXit99.css">
 </head>
 <body>
   <div id="game-container">
@@ -18,7 +18,8 @@
         <h3>Top Players</h3>
         <ol id="leaderboard-list"></ol>
       </div>
-      <div id="size-display">Size: 20</div>
+      <div id="room-code-display">Room: <span id="room-code">------</span></div>
+      <div id="size-display">Score: 0</div>
       <div id="nitro-display">
         <span id="nitro-label">NITRO</span>
         <div id="nitro-bar-bg"><div id="nitro-bar"></div></div>
@@ -42,6 +43,10 @@
             <button class="swatch" data-color="#e91e8c" style="background:#e91e8c"></button>
             <button class="swatch" data-color="#00bcd4" style="background:#00bcd4"></button>
           </div>
+        </div>
+        <div id="room-join-section">
+          <input type="text" id="room-code-input" placeholder="Room code (optional)" maxlength="6">
+          <p class="hint-text">Leave empty to join any available room</p>
         </div>
         <button id="play-btn">Play</button>
       </div>
