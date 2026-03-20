@@ -1,17 +1,23 @@
 import { Application, Container } from 'pixi.js';
 import {
   MAP_SIZE, BASE_RADIUS, BASE_SPEED,
-  MIN_ZOOM, MAX_ZOOM, FOOD_COUNT,
-  NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN, MAX_RADIUS, GROWTH_FACTOR
+  MIN_ZOOM, MAX_ZOOM,
+  NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN,
+  LOG_SCALE, LOG_RATE,
 } from '../../shared/constants.js';
 import { createWorldMap } from './renderer/worldMap.js';
 import { createCarSprite, resizeCar } from './renderer/carSprite.js';
-import { spawnLocalFoods, animateFuelCans, checkFoodCollisions, createFuelCan } from './renderer/fuelCan.js';
-import { connectToServer, onMessage, sendJoin, setPlayerStateGetter, isConnected } from './network.js';
+import { animateFuelCans, createFuelCan } from './renderer/fuelCan.js';
+import { connectToServer, onMessage, sendJoin, sendRespawn, setPlayerStateGetter, isConnected } from './network.js';
 import { showDeathScreen, hideDeathScreen } from './ui/screens.js';
 import { spawnParticles } from './renderer/particles.js';
 import { updateLeaderboard } from './ui/leaderboard.js';
 import { updateSizeDisplay, updateMiniMap } from './ui/hud.js';
+
+/** Logarithmic radius — grows forever, rate tapers with score */
+function scoreToRadius(score) {
+  return BASE_RADIUS + LOG_SCALE * Math.log1p(score * LOG_RATE);
+}
 
 // ── Exports ───────────────────────────────────────────────────────────────────
 export let app;
@@ -28,15 +34,16 @@ export const localPlayer = {
   y:        MAP_SIZE / 2,
   angle:    0,
   radius:   BASE_RADIUS,
-  score:    0, // track score separately
+  score:    0,
   color:    '#5865f2',
   username: 'Player',
   id:       null,
+  dead:     false,
 };
 
 // ── Camera state ──────────────────────────────────────────────────────────────
-let cameraX    = 0;
-let cameraY    = 0;
+let cameraX     = 0;
+let cameraY     = 0;
 let currentZoom = 1;
 
 // ── Mouse world position ──────────────────────────────────────────────────────
@@ -48,30 +55,30 @@ const speedLinesCanvas = document.getElementById('speed-lines');
 const slCtx = speedLinesCanvas?.getContext('2d');
 
 // ── Car sprite reference ──────────────────────────────────────────────────────
-let carSprite = null;
+let carSprite  = null;
 let lastRadius = BASE_RADIUS;
 
-// ── Network: server-authoritative state ──────────────────────────────────────
-// Map of id → { sprite, serverX, serverY, serverAngle, serverRadius }
+// ── Server-authoritative remote state ────────────────────────────────────────
+// id → { sprite, serverX, serverY, serverAngle, serverRadius, _lastRadius }
 const remotePlayers = new Map();
-// Map of id → sprite for server-managed food
+// id → fuel can sprite
 const serverFoods   = new Map();
-let   useServerFood = false; // flips true once first 'state' arrives
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 export async function initGame(username = 'Player', color = '#5865f2', roomCode = null) {
   localPlayer.username = username;
   localPlayer.color    = color;
-  app = new Application();
+  localPlayer.dead     = false;
 
+  app = new Application();
   await app.init({
     canvas: document.getElementById('gameCanvas'),
     resizeTo: window,
-    background: '#ffffff',
+    background: '#f5f5f5',
     antialias: true,
   });
 
-  // Scene graph
+  // Scene graph layers
   worldContainer = new Container();
   app.stage.addChild(worldContainer);
 
@@ -87,72 +94,55 @@ export async function initGame(username = 'Player', color = '#5865f2', roomCode 
   hudLayer = new Container();
   app.stage.addChild(hudLayer);
 
-  // World map background
   mapLayer.addChild(createWorldMap());
 
-  // Local player car
   carSprite = createCarSprite(localPlayer.color, localPlayer.username);
   carSprite.x = localPlayer.x;
   carSprite.y = localPlayer.y;
   playerLayer.addChild(carSprite);
-  carSprite._color = parseInt(localPlayer.color.replace('#', ''), 16);
 
-  // TASK 7 — spawn fuel cans
-  spawnLocalFoods(foodLayer, FOOD_COUNT, MAP_SIZE);
+  // ⚠️ Do NOT spawn local food cans — server sends all food via 'state' messages.
+  // Spawning local food caused 500 items visible (250 fake + 250 real).
 
-  // Mouse tracking — convert screen coords to world coords
+  // Mouse → world coords
   window.addEventListener('mousemove', (e) => {
     mouse.x = (e.clientX - worldContainer.x) / currentZoom;
     mouse.y = (e.clientY - worldContainer.y) / currentZoom;
   });
 
-  // Nitro — spacebar activates boost (skip if death screen is open)
+  // Spacebar = nitro (skip if overlay active)
   window.addEventListener('keydown', (e) => {
     if (e.code !== 'Space') return;
     const overlay = document.getElementById('screen-overlay');
-    if (overlay.classList.contains('active')) return; // handled by screens.js
+    if (overlay.classList.contains('active')) return;
     e.preventDefault();
     activateNitro();
   });
 
-  // Size speed-lines canvas to window
   if (speedLinesCanvas) {
-    const resizeCanvas = () => {
+    const resize = () => {
       speedLinesCanvas.width  = window.innerWidth;
       speedLinesCanvas.height = window.innerHeight;
     };
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    resize();
+    window.addEventListener('resize', resize);
   }
 
-  // Force canvas size sync
-  const syncCanvasSize = () => {
-    const canvas = document.getElementById('gameCanvas');
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-  };
-  syncCanvasSize();
-  window.addEventListener('resize', syncCanvasSize);
+  window.addEventListener('resize', () => {
+    const c = document.getElementById('gameCanvas');
+    c.style.width = '100%';
+    c.style.height = '100%';
+  });
 
-  // Main ticker
   app.ticker.add(gameLoop);
-
-  // Show HUD now that game is running
   document.getElementById('hud').classList.add('visible');
-
-  // Network — connect to server
   connectNetwork(roomCode);
-
   console.log(`[game] ready — ${app.screen.width}×${app.screen.height}`);
 }
 
-// ── Game loop (runs every frame) ──────────────────────────────────────────────
+// ── Game loop ─────────────────────────────────────────────────────────────────
 function gameLoop() {
-  movePlayer();
-  // Don't check food collisions locally - server handles it
-  // if (!useServerFood) {
-  //   checkFoodCollisions(foodLayer, localPlayer, MAP_SIZE);
-  // }
+  if (!localPlayer.dead) movePlayer();
   animateFuelCans(foodLayer);
   interpolateRemotePlayers();
   updateCamera();
@@ -165,69 +155,50 @@ function gameLoop() {
 function movePlayer() {
   const dx = mouse.x - localPlayer.x;
   const dy = mouse.y - localPlayer.y;
-
-  // Always update angle and move toward mouse
   localPlayer.angle = Math.atan2(dy, dx);
 
-  // Speed scales down as car grows; nitro multiplies it
   const now = Date.now();
   if (nitro.active && now > nitro.endTime) nitro.active = false;
   const boost = nitro.active ? NITRO_MULTIPLIER : 1;
   const speed = (BASE_SPEED / Math.sqrt(localPlayer.radius / BASE_RADIUS)) * boost;
 
-  // Always move, no distance check
   localPlayer.x += Math.cos(localPlayer.angle) * speed;
   localPlayer.y += Math.sin(localPlayer.angle) * speed;
-  
-  // Clamp to map bounds
   localPlayer.x = Math.max(localPlayer.radius, Math.min(MAP_SIZE - localPlayer.radius, localPlayer.x));
   localPlayer.y = Math.max(localPlayer.radius, Math.min(MAP_SIZE - localPlayer.radius, localPlayer.y));
 }
 
 function updateCamera() {
   const screen = app.screen;
-
-  // Target zoom: smaller car = zoomed in, bigger car = zoomed out
-  const targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
-    BASE_RADIUS / localPlayer.radius
-  ));
-
-  // Lerp zoom
+  const targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, BASE_RADIUS / localPlayer.radius));
   currentZoom += (targetZoom - currentZoom) * 0.05;
 
-  // Target camera position: keep local player centered
   const targetCamX = screen.width  / 2 - localPlayer.x * currentZoom;
   const targetCamY = screen.height / 2 - localPlayer.y * currentZoom;
-
-  // Lerp camera
   cameraX += (targetCamX - cameraX) * 0.08;
   cameraY += (targetCamY - cameraY) * 0.08;
 
-  worldContainer.x     = cameraX;
-  worldContainer.y     = cameraY;
+  worldContainer.x = cameraX;
+  worldContainer.y = cameraY;
   worldContainer.scale.set(currentZoom);
 }
 
 function updateCarSprite() {
   carSprite.x = localPlayer.x;
   carSprite.y = localPlayer.y;
-
-  // Rotate car: angle 0 = right, but car faces up by default, so offset by -π/2
   carSprite.rotation = localPlayer.angle + Math.PI / 2;
 
-  // Redraw if radius changed (check with tolerance to avoid constant redraws)
-  if (Math.abs(localPlayer.radius - lastRadius) > 0.5) {
+  // Only redraw if radius changed by >1px to stop per-frame flicker
+  if (Math.abs(localPlayer.radius - lastRadius) > 1.0) {
     resizeCar(carSprite, localPlayer.radius);
     lastRadius = localPlayer.radius;
-    console.log('[game] car resized to radius:', localPlayer.radius, 'score:', localPlayer.score);
   }
 }
 
 // ── Nitro ─────────────────────────────────────────────────────────────────────
-
 function activateNitro() {
   const now = Date.now();
-  if (now < nitro.cooldownEnd) return; // still on cooldown
+  if (now < nitro.cooldownEnd) return;
   nitro.active      = true;
   nitro.endTime     = now + NITRO_DURATION;
   nitro.cooldownEnd = now + NITRO_COOLDOWN;
@@ -239,7 +210,6 @@ function drawSpeedLines() {
   const h = speedLinesCanvas.height;
   slCtx.clearRect(0, 0, w, h);
 
-  // Update nitro bar
   const now = Date.now();
   const nitroBar = document.getElementById('nitro-bar');
   if (nitroBar) {
@@ -250,7 +220,7 @@ function drawSpeedLines() {
     } else if (now < nitro.cooldownEnd) {
       const pct = Math.max(0, 1 - (nitro.cooldownEnd - now) / NITRO_COOLDOWN) * 100;
       nitroBar.style.width    = pct + '%';
-      nitroBar.style.background = 'rgba(255,255,255,0.3)';
+      nitroBar.style.background = 'rgba(88,101,242,0.3)';
     } else {
       nitroBar.style.width    = '100%';
       nitroBar.style.background = '#5865f2';
@@ -258,22 +228,17 @@ function drawSpeedLines() {
   }
 
   if (!nitro.active) return;
-
   const progress = 1 - (nitro.endTime - now) / NITRO_DURATION;
   const alpha    = Math.max(0, 0.55 - progress * 0.55);
   if (alpha <= 0) return;
 
-  const cx = w / 2;
-  const cy = h / 2;
-  const lineCount = 24;
-
-  slCtx.strokeStyle = `rgba(255,255,255,${alpha})`;
+  const cx = w / 2, cy = h / 2;
+  slCtx.strokeStyle = `rgba(88,101,242,${alpha})`;
   slCtx.lineWidth   = 1.5;
-
-  for (let i = 0; i < lineCount; i++) {
-    const angle  = (Math.PI * 2 * i) / lineCount;
-    const inner  = 80 + Math.random() * 60;
-    const outer  = inner + 60 + Math.random() * 120;
+  for (let i = 0; i < 24; i++) {
+    const angle = (Math.PI * 2 * i) / 24;
+    const inner = 80  + Math.random() * 60;
+    const outer = inner + 60 + Math.random() * 120;
     slCtx.beginPath();
     slCtx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
     slCtx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
@@ -282,12 +247,9 @@ function drawSpeedLines() {
 }
 
 // ── Network ───────────────────────────────────────────────────────────────────
-
 function connectNetwork(roomCode = null) {
   const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:9001`;
 
-  // If already connected from main.js menu screen, just send join
-  // Otherwise connect fresh (local dev without menu pre-connect)
   if (isConnected()) {
     sendJoin(localPlayer.username, localPlayer.color, roomCode);
   } else {
@@ -296,75 +258,69 @@ function connectNetwork(roomCode = null) {
     });
   }
 
-  // Inject player state getter so network.js can send moves every 50ms
   setPlayerStateGetter(() => localPlayer);
 
-  // Server confirms our join — sync position
   onMessage('welcome', (msg) => {
     localPlayer.x      = msg.x;
     localPlayer.y      = msg.y;
     localPlayer.radius = msg.radius;
     localPlayer.score  = msg.score || 0;
     localPlayer.id     = msg.id;
-    
-    // Display room code
+    localPlayer.dead   = false;
+
     const roomCodeEl = document.getElementById('room-code');
-    if (roomCodeEl && msg.roomId) {
-      roomCodeEl.textContent = msg.roomId;
-    }
+    if (roomCodeEl && msg.roomId) roomCodeEl.textContent = msg.roomId;
+
+    const roomDisplay = document.getElementById('room-code-display');
+    if (roomDisplay) roomDisplay.style.display = 'block';
   });
 
-  // Full world state tick
   onMessage('state', (msg) => {
-    useServerFood = true;
     reconcileRemotePlayers(msg.players);
     reconcileServerFoods(msg.foods);
   });
 
-  // We were killed
   onMessage('killed', (msg) => {
+    localPlayer.dead = true;
     spawnParticles(particleLayer, localPlayer.x, localPlayer.y, localPlayer.color);
     showDeathScreen(msg.killerName, () => {
-      // Player clicked respawn — server will send respawn message
+      sendRespawn(); // request server to give us a new spawn point
     });
   });
 
-  // Server respawned us
   onMessage('respawn', (msg) => {
     localPlayer.x      = msg.x;
     localPlayer.y      = msg.y;
     localPlayer.radius = msg.radius;
     localPlayer.score  = msg.score || 0;
+    localPlayer.dead   = false;
     hideDeathScreen();
+    // Snap camera to new position — no lerp stutter on respawn
+    cameraX = app.screen.width  / 2 - localPlayer.x;
+    cameraY = app.screen.height / 2 - localPlayer.y;
   });
 
-  // Live leaderboard — broadcast every 2s from server
   onMessage('board', (msg) => {
-    console.log('[game] received board message:', msg);
     updateLeaderboard(msg.ranked, msg.total);
   });
 }
 
 // ── Remote player reconciliation ──────────────────────────────────────────────
-
 function reconcileRemotePlayers(serverList) {
   const seen = new Set();
 
   for (const p of serverList) {
     if (p.id === localPlayer.id) {
-      // Update our own score from server
+      // Trust server for score + radius (server is authoritative)
       if (p.score !== undefined) {
-        localPlayer.score = p.score;
-        // Calculate radius from score
-        localPlayer.radius = BASE_RADIUS + Math.sqrt(localPlayer.score * GROWTH_FACTOR);
-        console.log('[game] synced from server - score:', localPlayer.score, 'radius:', localPlayer.radius);
+        localPlayer.score  = p.score;
+        localPlayer.radius = p.radius; // use server-computed log radius
       }
       continue;
     }
     seen.add(p.id);
 
     if (!remotePlayers.has(p.id)) {
-      // New player — create sprite
       const sprite = createCarSprite(p.color, p.username);
       playerLayer.addChild(sprite);
       remotePlayers.set(p.id, {
@@ -373,9 +329,9 @@ function reconcileRemotePlayers(serverList) {
         serverY:      p.y,
         serverAngle:  p.angle,
         serverRadius: p.radius,
+        _lastRadius:  0,
       });
     } else {
-      // Update server target for interpolation
       const entry = remotePlayers.get(p.id);
       entry.serverX      = p.x;
       entry.serverY      = p.y;
@@ -384,17 +340,16 @@ function reconcileRemotePlayers(serverList) {
     }
   }
 
-  // Remove players no longer in view
   for (const [id, entry] of remotePlayers) {
     if (!seen.has(id)) {
       playerLayer.removeChild(entry.sprite);
+      entry.sprite.destroy({ children: true });
       remotePlayers.delete(id);
     }
   }
 }
 
 // ── Server food reconciliation ────────────────────────────────────────────────
-
 function reconcileServerFoods(foodList) {
   const seen = new Set();
 
@@ -410,22 +365,23 @@ function reconcileServerFoods(foodList) {
   for (const [id, can] of serverFoods) {
     if (!seen.has(id)) {
       foodLayer.removeChild(can);
+      can.destroy({ children: true });
       serverFoods.delete(id);
     }
   }
 }
 
-// ── Remote player interpolation (called each frame) ──────────────────────────
-
+// ── Remote player interpolation ───────────────────────────────────────────────
 function interpolateRemotePlayers() {
   const LERP = 0.15;
   for (const entry of remotePlayers.values()) {
     const s = entry.sprite;
-    s.x        += (entry.serverX     - s.x)        * LERP;
-    s.y        += (entry.serverY     - s.y)        * LERP;
-    s.rotation  = entry.serverAngle + Math.PI / 2;
+    s.x       += (entry.serverX - s.x) * LERP;
+    s.y       += (entry.serverY - s.y) * LERP;
+    s.rotation = entry.serverAngle + Math.PI / 2;
 
-    if (Math.round(entry.serverRadius) !== Math.round(entry._lastRadius || 0)) {
+    // Redraw only if radius changed >1px to prevent flicker
+    if (Math.abs(entry.serverRadius - entry._lastRadius) > 1.0) {
       resizeCar(s, entry.serverRadius);
       entry._lastRadius = entry.serverRadius;
     }

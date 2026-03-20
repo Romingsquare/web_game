@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { FOOD_RADIUS, FOOD_VALUE, BASE_RADIUS, GROWTH_FACTOR } from '../../../shared/constants.js';
+import { FOOD_RADIUS } from '../../../shared/constants.js';
 
 const FOOD_COLORS = [
   0xff6b6b, // red
@@ -91,62 +91,5 @@ export function animateFuelCans(foodLayer) {
     can._body.scale.set(s);
     // Alpha ±20% on glow
     can._glow.alpha = 0.2 + pulse * 0.15;
-  }
-}
-
-/**
- * Spawns `count` fuel cans at random positions and adds them to foodLayer.
- * @param {Container} foodLayer
- * @param {number} count
- * @param {number} mapSize
- * @returns {Array} array of can data objects {id, x, y}
- */
-export function spawnLocalFoods(foodLayer, count, mapSize) {
-  const foods = [];
-  for (let i = 0; i < count; i++) {
-    const id = `local_${i}`;
-    const x  = Math.random() * (mapSize - 100) + 50;
-    const y  = Math.random() * (mapSize - 100) + 50;
-    const can = createFuelCan(x, y, id);
-    foodLayer.addChild(can);
-    foods.push({ id, x, y });
-  }
-  return foods;
-}
-
-/**
- * Checks if the local player overlaps any fuel can.
- * Removes eaten cans, grows player score, respawns them at new random positions.
- * @param {Container} foodLayer
- * @param {object} player  - localPlayer ref {x, y, radius, score}
- * @param {number} mapSize
- */
-export function checkFoodCollisions(foodLayer, player, mapSize) {
-  const eatDistSq = (player.radius + FOOD_RADIUS) ** 2;
-
-  for (let i = foodLayer.children.length - 1; i >= 0; i--) {
-    const can = foodLayer.children[i];
-    const dx  = player.x - can.x;
-    const dy  = player.y - can.y;
-    if (dx * dx + dy * dy < eatDistSq) {
-      // Increase score
-      player.score += FOOD_VALUE;
-      
-      // Calculate radius from score (exponential slowdown)
-      player.radius = BASE_RADIUS + Math.sqrt(player.score * GROWTH_FACTOR);
-
-      // Respawn can at new random position with new color
-      can.x = Math.random() * (mapSize - 100) + 50;
-      can.y = Math.random() * (mapSize - 100) + 50;
-      can._born = Date.now(); // reset pulse phase
-      
-      // Change color
-      const newColor = FOOD_COLORS[Math.floor(Math.random() * FOOD_COLORS.length)];
-      can._color = newColor;
-      can._body.clear();
-      drawCan(can._body, newColor);
-      can._glow.clear();
-      can._glow.circle(0, 0, FOOD_RADIUS * 1.8).fill({ color: newColor, alpha: 0.2 });
-    }
   }
 }

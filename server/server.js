@@ -73,6 +73,7 @@ app.ws('/*', {
     if (msg.t === 'move') {
       const player = ws.playerData;
       if (!player) return;
+      if (player.dead) return; // ignore movement while dead
       const room = getRoomById(ws.roomId);
       if (!room) return;
       const p = room.players.get(player.id);
@@ -81,6 +82,14 @@ app.ws('/*', {
       p.y        = Math.max(p.radius, Math.min(MAP_SIZE - p.radius, Number(msg.y) || p.y));
       p.angle    = Number(msg.angle) || p.angle;
       p.lastMove = Date.now();
+    }
+
+    // ── respawn ───────────────────────────────────────────────────────────────
+    if (msg.t === 'respawn') {
+      const player = ws.playerData;
+      if (!player) return;
+      const room = getRoomById(ws.roomId);
+      if (room) room.respawnPlayer(player.id);
     }
   },
 

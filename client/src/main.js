@@ -3,12 +3,12 @@ import { getSelectedColor } from './ui/screens.js';
 import { connectToServer, onMessage } from './network.js';
 import { updateOnlineCount } from './ui/screens.js';
 
-// ── Connect early just to show online count on menu ───────────────────────────
+// ── Connect early to show online count on menu ─────────────────────────────
 const wsUrl = import.meta.env.VITE_WS_URL || `ws://${location.hostname}:9001`;
 connectToServer(wsUrl, {});
 onMessage('online', (msg) => updateOnlineCount(msg.totalPlayers, msg.roomCount));
 
-// ── Play button ───────────────────────────────────────────────────────────────
+// ── Play button ────────────────────────────────────────────────────────────
 const overlay       = document.getElementById('screen-overlay');
 const usernameInput = document.getElementById('username-input');
 const roomCodeInput = document.getElementById('room-code-input');
@@ -27,9 +27,26 @@ function startGame() {
 }
 
 playBtn.addEventListener('click', startGame);
-usernameInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') startGame();
-});
-roomCodeInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') startGame();
+usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(); });
+roomCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startGame(); });
+
+// ── Room code copy button (visible in-game) ────────────────────────────────
+document.addEventListener('click', (e) => {
+  if (e.target.id !== 'copy-room-btn') return;
+  const code = document.getElementById('room-code')?.textContent?.trim();
+  if (!code || code === '------') return;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = e.target;
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = '⧉'; }, 1500);
+  }).catch(() => {
+    // Fallback: select the text
+    const el = document.getElementById('room-code');
+    if (el) {
+      const range = document.createRange();
+      range.selectNode(el);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+  });
 });

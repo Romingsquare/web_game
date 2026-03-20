@@ -75,6 +75,13 @@ export function sendJoin(username, color, roomId = null) {
   send(msg);
 }
 
+/**
+ * Send respawn request to server after death screen.
+ */
+export function sendRespawn() {
+  send({ t: 'respawn' });
+}
+
 // ── Move send loop ────────────────────────────────────────────────────────────
 
 let sendLoopId  = null;

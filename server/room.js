@@ -1,10 +1,18 @@
 import { randomBytes } from 'crypto';
 import {
   MAP_SIZE, BASE_RADIUS, FOOD_COUNT, FOOD_RADIUS, FOOD_VALUE,
-  EAT_RATIO, TICK_RATE, MAX_PLAYERS_PER_ROOM, ROOM_ID_LENGTH, MAX_RADIUS, GROWTH_FACTOR,
+  EAT_RATIO, TICK_RATE, MAX_PLAYERS_PER_ROOM, ROOM_ID_LENGTH,
+  LOG_SCALE, LOG_RATE,
 } from '../shared/constants.js';
 import { saveHighScore } from './supabase.js';
 import { removeRoom } from './roomManager.js';
+
+/** Logarithmic radius formula — grows forever but tapers */
+function scoreToRadius(score) {
+  return BASE_RADIUS + LOG_SCALE * Math.log1p(score * LOG_RATE);
+}
+
+
 
 let foodIdCounter = 0;
 
@@ -84,16 +92,15 @@ export class Room {
 
   _checkFoodCollisions() {
     for (const player of this.players.values()) {
+      if (player.dead) continue; // don't eat food while dead/waiting respawn
       const eatDistSq = (player.radius + FOOD_RADIUS) ** 2;
       for (let i = this.foods.length - 1; i >= 0; i--) {
         const f = this.foods[i];
         const dx = player.x - f.x;
         const dy = player.y - f.y;
         if (dx * dx + dy * dy < eatDistSq) {
-          // Increase score
           player.score = (player.score || 0) + FOOD_VALUE;
-          // Calculate radius from score (exponential slowdown)
-          player.radius = Math.min(MAX_RADIUS, BASE_RADIUS + Math.sqrt(player.score * GROWTH_FACTOR));
+          player.radius = scoreToRadius(player.score);
           this.foods.splice(i, 1);
         }
       }
@@ -106,6 +113,7 @@ export class Room {
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i];
         const b = list[j];
+        if (a.dead || b.dead) continue; // dead players can't collide
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
         if (dist > a.radius + b.radius) continue;
 
@@ -114,25 +122,33 @@ export class Room {
         else if (b.radius >= a.radius * EAT_RATIO) { killer = b; victim = a; }
         else continue;
 
+        // Save high score before resetting
+        saveHighScore(victim.username, victim.score || 0).catch(() => {});
+
+        // Mark victim dead — frozen until they send {t:'respawn'}
+        victim.dead   = true;
+        victim.score  = 0;
+        victim.radius = BASE_RADIUS;
+
         safeSend(victim.ws, JSON.stringify({
           t: 'killed', killerId: killer.id, killerName: killer.username,
         }));
-
-        // Save high score using score, not radius
-        const victimScore = victim.score || 0;
-        saveHighScore(victim.username, victimScore).catch(() => {});
-
-        // Respawn victim in place
-        victim.x      = randomPos();
-        victim.y      = randomPos();
-        victim.radius = BASE_RADIUS;
-        victim.score  = 0;
-
-        safeSend(victim.ws, JSON.stringify({
-          t: 'respawn', x: victim.x, y: victim.y, radius: victim.radius, score: victim.score,
-        }));
       }
     }
+  }
+
+  /** Called when a client sends {t: 'respawn'}. */
+  respawnPlayer(id) {
+    const p = this.players.get(id);
+    if (!p) return;
+    p.dead   = false;
+    p.x      = randomPos();
+    p.y      = randomPos();
+    p.radius = BASE_RADIUS;
+    p.score  = 0;
+    safeSend(p.ws, JSON.stringify({
+      t: 'respawn', x: p.x, y: p.y, radius: p.radius, score: p.score,
+    }));
   }
 
   _refillFoods() {
@@ -141,6 +157,7 @@ export class Room {
 
   _broadcastState() {
     for (const player of this.players.values()) {
+      if (player.dead) continue; // don't send state to dead players
       const { visPlayers, visFoods } = this._getVisible(player);
       safeSend(player.ws, JSON.stringify({
         t: 'state', players: visPlayers, foods: visFoods,
