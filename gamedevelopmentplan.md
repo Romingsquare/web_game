@@ -225,7 +225,7 @@ Table `scores`: columns `username (text, unique)`, `high_score (int)`, `updated_
 - [x] **TASK 23** — Update network.js to use Railway URL in production, build with Vite
 - [x] **TASK 24** — Deploy client build to GitHub Pages, end-to-end live test, ship it
 
----
+----
 
 ## CURRENT SESSION TASK
 
