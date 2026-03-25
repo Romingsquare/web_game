@@ -44,15 +44,8 @@ export function updateMiniMap(localPlayer, remotePlayers, serverFoods) {
     mmCtx.fillRect(can.x * scaleX - 1, can.y * scaleY - 1, 2, 2);
   }
 
-  // Remote players — white dots sized by radius (skip dead players)
+  // Remote players — white dots sized by radius
   for (const entry of remotePlayers.values()) {
-    // Skip if this is a dead player (radius would be at BASE_RADIUS and they shouldn't move)
-    if (entry.serverRadius <= BASE_RADIUS && entry.serverX === entry.lastX && entry.serverY === entry.lastY) {
-      continue;
-    }
-    entry.lastX = entry.serverX;
-    entry.lastY = entry.serverY;
-    
     const r = Math.max(2, entry.serverRadius * scaleX * 0.5);
     mmCtx.beginPath();
     mmCtx.arc(entry.serverX * scaleX, entry.serverY * scaleY, r, 0, Math.PI * 2);
