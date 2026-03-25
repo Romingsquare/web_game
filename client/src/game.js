@@ -3,7 +3,7 @@ import {
   MAP_SIZE, BASE_RADIUS, BASE_SPEED,
   MIN_ZOOM, MAX_ZOOM,
   NITRO_MULTIPLIER, NITRO_DURATION, NITRO_COOLDOWN,
-  LOG_SCALE, LOG_RATE,
+  GROWTH_PER_FOOD,
 } from '../../shared/constants.js';
 import { createWorldMap } from './renderer/worldMap.js';
 import { createCarSprite, resizeCar } from './renderer/carSprite.js';
@@ -14,9 +14,9 @@ import { spawnParticles } from './renderer/particles.js';
 import { updateLeaderboard } from './ui/leaderboard.js';
 import { updateSizeDisplay, updateMiniMap } from './ui/hud.js';
 
-/** Logarithmic radius — grows forever, rate tapers with score */
+/** Simple linear radius growth - very gradual */
 function scoreToRadius(score) {
-  return BASE_RADIUS + LOG_SCALE * Math.log1p(score * LOG_RATE);
+  return BASE_RADIUS + (score * GROWTH_PER_FOOD);
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
@@ -159,8 +159,10 @@ function movePlayer() {
 
   const now = Date.now();
   if (nitro.active && now > nitro.endTime) nitro.active = false;
+  
+  // Constant speed - only boosted by nitro
   const boost = nitro.active ? NITRO_MULTIPLIER : 1;
-  const speed = (BASE_SPEED / Math.sqrt(localPlayer.radius / BASE_RADIUS)) * boost;
+  const speed = BASE_SPEED * boost;
 
   localPlayer.x += Math.cos(localPlayer.angle) * speed;
   localPlayer.y += Math.sin(localPlayer.angle) * speed;
@@ -171,7 +173,7 @@ function movePlayer() {
 function updateCamera() {
   const screen = app.screen;
   const targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, BASE_RADIUS / localPlayer.radius));
-  currentZoom += (targetZoom - currentZoom) * 0.05;
+  currentZoom += (targetZoom - currentZoom) * 0.02; // Reduced from 0.05 for slower zoom
 
   const targetCamX = screen.width  / 2 - localPlayer.x * currentZoom;
   const targetCamY = screen.height / 2 - localPlayer.y * currentZoom;

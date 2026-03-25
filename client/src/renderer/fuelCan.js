@@ -38,29 +38,16 @@ export function createFuelCan(x, y, id) {
       .fill({ color, alpha: 0.2 });
   container.addChild(glow);
 
-  // Main can body
+  // Main body (particle circle)
   const body = new Graphics();
-  drawCan(body, color);
+  body.circle(0, 0, FOOD_RADIUS)
+      .fill({ color });
   container.addChild(body);
 
   container._glow = glow;
   container._body = body;
 
   return container;
-}
-
-function drawCan(g, color) {
-  // Fuel can: small rounded rect with a nozzle on top
-  g.roundRect(-FOOD_RADIUS * 0.7, -FOOD_RADIUS, FOOD_RADIUS * 1.4, FOOD_RADIUS * 1.8, 3)
-   .fill({ color });
-  // Nozzle (darker shade)
-  const darkerColor = darkenColor(color, 0.8);
-  g.roundRect(-FOOD_RADIUS * 0.2, -FOOD_RADIUS * 1.35, FOOD_RADIUS * 0.55, FOOD_RADIUS * 0.5, 2)
-   .fill({ color: darkerColor });
-  // Highlight stripe (lighter shade)
-  const lighterColor = lightenColor(color, 1.2);
-  g.roundRect(-FOOD_RADIUS * 0.45, -FOOD_RADIUS * 0.7, FOOD_RADIUS * 0.25, FOOD_RADIUS * 1.1, 2)
-   .fill({ color: lighterColor, alpha: 0.6 });
 }
 
 function darkenColor(color, factor) {
